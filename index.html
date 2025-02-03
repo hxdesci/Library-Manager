@@ -1,0 +1,784 @@
+<style>
+    /* General Styles */
+    body {
+        font-family: 'Roboto', sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f3f7f9;
+        color: #333;
+        transition: background-color 0.3s, color 0.3s;
+    }
+
+    .container {
+        max-width: 1200px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+        transition: background 0.3s, color 0.3s;
+    }
+
+    /* Dark Mode Styles */
+    body.dark-mode {
+        background-color: #121212;
+        color: #e0e0e0;
+    }
+
+    .container.dark-mode {
+        background: #1e1e1e;
+        color: #e0e0e0;
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Form Styles */
+    form {
+        margin-bottom: 2rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        background: #f9f9f9;
+        padding: 1.5rem;
+        border-radius: 12px;
+        transition: background 0.3s, color 0.3s;
+    }
+
+    form.dark-mode {
+        background: #2a2a2a;
+    }
+
+    form label {
+        flex: 1 0 100%;
+        font-weight: 500;
+        color: #2c3e50;
+        margin-bottom: 0.5rem;
+        transition: color 0.3s;
+    }
+
+    form.dark-mode label {
+        color: #b0b0b0;
+    }
+
+    form input {
+        flex: 1 1 calc(50% - 1rem);
+        padding: 0.8rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.3s, color 0.3s;
+    }
+
+    form input:focus {
+        border-color: #3498db;
+        box-shadow: 0 0 5px rgba(52, 152, 219, 0.5);
+        outline: none;
+    }
+
+    form.dark-mode input {
+        background: #3b3b3b;
+        color: #e0e0e0;
+    }
+
+    form button {
+        flex: 1 1 100%;
+        padding: 0.8rem;
+        background-color: #3498db;
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        font-size: 1.2rem;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+
+    form button:hover {
+        background-color: #2980b9;
+        transform: translateY(-2px);
+    }
+
+    /* Search Bar Styles */
+    .search-bar {
+        margin-bottom: 2rem;
+        display: flex;
+        gap: 1rem;
+    }
+
+    .search-bar input {
+        flex: 1;
+        padding: 0.8rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.3s, color 0.3s;
+    }
+
+    .search-bar input:focus {
+        border-color: #3498db;
+        box-shadow: 0 0 5px rgba(52, 152, 219, 0.5);
+        outline: none;
+    }
+
+    .search-bar.dark-mode input {
+        background: #3b3b3b;
+        color: #e0e0e0;
+    }
+
+    /* Tabs Styles */
+    .tabs {
+        display: flex;
+        border-bottom: 2px solid #ddd;
+        margin-bottom: 2rem;
+    }
+
+    .tab {
+        padding: 1rem 2rem;
+        cursor: pointer;
+        font-weight: 500;
+        color: #555;
+        transition: color 0.3s ease, border-color 0.3s ease;
+        border-bottom: 2px solid transparent;
+    }
+
+    .tab:hover, .tab.active {
+        color: #3498db;
+        border-color: #3498db;
+    }
+
+    .tab.dark-mode {
+        color: #b0b0b0;
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* Book List Styles */
+    .book-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .book {
+        padding: 1.5rem;
+        background-color: #ffffff;
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.3s, color 0.3s;
+    }
+
+    .book:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+    }
+
+    .book.dark-mode {
+        background: #2a2a2a;
+        border-color: #444;
+        color: #e0e0e0;
+    }
+
+    .book p {
+        margin: 0.5rem 0;
+        color: #555;
+        transition: color 0.3s;
+    }
+
+    .book button {
+        margin-top: 0.5rem;
+        padding: 0.5rem 1rem;
+        background-color: #e74c3c;
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+
+    .book button:hover {
+        background-color: #c0392b;
+        transform: translateY(-2px);
+    }
+
+    .book input[type="number"] {
+        width: 80px;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: background 0.3s, color 0.3s;
+    }
+
+    .book.dark-mode input[type="number"] {
+        background: #3b3b3b;
+        color: #e0e0e0;
+    }
+
+    /* Empty State Styles */
+    .empty-state {
+        text-align: center;
+        color: #7f8c8d;
+        font-size: 1.2rem;
+        margin: 2rem 0;
+        transition: color 0.3s;
+    }
+
+    .empty-state.dark-mode {
+        color: #b0b0b0;
+    }
+
+    /* Sort Books Styles */
+    .sort-books {
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .sort-books label {
+        font-weight: 500;
+        color: #2c3e50;
+    }
+
+    .sort-books select {
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .sort-books select:focus {
+        border-color: #3498db;
+        box-shadow: 0 0 5px rgba(52, 152, 219, 0.5);
+        outline: none;
+    }
+
+    .sort-books.dark-mode label {
+        color: #b0b0b0;
+    }
+
+    .sort-books.dark-mode select {
+        background: #3b3b3b;
+        color: #e0e0e0;
+        border-color: #444;
+    }
+
+    /* Borrow History Styles */
+    .borrow-history {
+        margin-top: 2rem;
+        background: #f9f9f9;
+        padding: 1.5rem;
+        border-radius: 12px;
+        transition: background 0.3s, color 0.3s;
+    }
+
+    .borrow-history.dark-mode {
+        background: #2a2a2a;
+    }
+
+    .borrow-history h3 {
+        margin-top: 0;
+    }
+
+    .borrow-history table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .borrow-history th, .borrow-history td {
+        padding: 0.8rem;
+        border: 1px solid #ddd;
+        text-align: left;
+    }
+
+    .borrow-history th {
+        background-color: #3498db;
+        color: #ffffff;
+    }
+
+    .borrow-history.dark-mode th {
+        background-color: #2980b9;
+    }
+
+    .borrow-history td {
+        background-color: #ffffff;
+        color: #333;
+    }
+
+    .borrow-history.dark-mode td {
+        background-color: #3b3b3b;
+        color: #e0e0e0;
+    }
+
+    /* Generate Report Button Styles */
+    .generate-report {
+        display: flex;
+        justify-content: center;
+        margin-top: 2rem;
+    }
+
+    .generate-report button {
+        padding: 0.8rem 1.5rem;
+        background-color: #2ecc71;
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        font-size: 1.2rem;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+
+    .generate-report button:hover {
+        background-color: #27ae60;
+        transform: translateY(-2px);
+    }
+
+    .user-controls {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        display: flex;
+        gap: 1rem;
+    }
+
+    .logout-button {
+        padding: 0.5rem 1rem;
+        background-color: #e74c3c;
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+
+    .logout-button:hover {
+        background-color: #c0392b;
+        transform: translateY(-2px);
+    }
+
+    /* Responsive Styles */
+    @media (max-width: 768px) {
+        form input {
+            flex: 1 1 100%;
+        }
+        form button {
+            flex: 1 1 100%;
+        }
+        .search-bar {
+            flex-direction: column;
+        }
+    }
+
+    /* Users List Styles */
+    .users-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+        background: #ffffff;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .users-table th,
+    .users-table td {
+        padding: 1rem;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
+
+    .users-table th {
+        background-color: #3498db;
+        color: #ffffff;
+    }
+
+    .users-table tr:hover {
+        background-color: #f5f5f5;
+    }
+
+    .dark-mode .users-table {
+        background: #2a2a2a;
+        color: #e0e0e0;
+    }
+
+    .dark-mode .users-table th {
+        background-color: #2980b9;
+    }
+
+    .dark-mode .users-table td {
+        border-color: #444;
+    }
+
+    .dark-mode .users-table tr:hover {
+        background-color: #333;
+    }
+
+    .admin-only {
+        display: none;
+    }
+
+    .delete-user {
+        padding: 0.5rem 1rem;
+        background-color: #e74c3c;
+        color: #ffffff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+    }
+
+    .delete-user:hover {
+        background-color: #c0392b;
+    }
+
+    .admin-tab {
+        display: none;
+    }
+
+    /* Show admin tab when user is admin */
+    body[data-role="admin"] .admin-tab {
+        display: block;
+    }
+</style>
+</head>
+<body>
+    <script>
+        // Check if user is authenticated
+        if (!localStorage.getItem('isAuthenticated')) {
+            window.location.href = 'login.html';
+        }
+
+        // Set role attribute on body
+        document.body.setAttribute('data-role', localStorage.getItem('userRole'));
+
+        // Hide admin-only elements for students
+        if (localStorage.getItem('userRole') === 'student') {
+            document.addEventListener('DOMContentLoaded', function() {
+                // Hide admin controls
+                document.getElementById('addBookForm').style.display = 'none';
+                document.querySelectorAll('.book button').forEach(btn => {
+                    if (btn.textContent !== 'Borrow') {
+                        btn.style.display = 'none';
+                    }
+                });
+                // Hide borrow history section for students
+                document.querySelector('.borrow-history').style.display = 'none';
+                // Hide generate report button for students
+                document.querySelector('.generate-report').style.display = 'none';
+            });
+        }
+
+        // Show admin-only elements
+        if (localStorage.getItem('userRole') === 'admin') {
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
+        }
+
+        // Function to show the selected tab
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            document.getElementById(tabId).classList.add('active');
+            document.querySelector(`[onclick="showTab('${tabId}')"]`).classList.add('active');
+
+            // Update users list when switching to registered-users tab
+            if (tabId === 'registered-users' && localStorage.getItem('userRole') === 'admin') {
+                updateUsersList();
+            }
+        }
+
+        // Function to update users list
+        function updateUsersList() {
+            const users = JSON.parse(localStorage.getItem('users')) || [];
+            const usersTableBody = document.getElementById('usersTableBody');
+            
+            if (users.length === 0) {
+                usersTableBody.innerHTML = '<tr><td colspan="4" class="empty-state">No registered users found.</td></tr>';
+                return;
+            }
+
+            usersTableBody.innerHTML = users.map(user => `
+                <tr>
+                    <td>${user.username}</td>
+                    <td>${user.password}</td>
+                    <td>${user.role}</td>
+                    <td>
+                        <button class="delete-user" onclick="deleteUser('${user.username}')">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    </script>
+    <div class="container">
+        <h1>Library Manager</h1>
+
+        <div class="user-controls">
+            <span class="user-role">Role: <span id="currentRole"></span></span>
+            <button onclick="logout()" class="logout-button">Logout</button>
+        </div>
+
+        <script>
+            // Update the displayed role
+            document.getElementById('currentRole').textContent = 
+                localStorage.getItem('userRole') || 'Guest';
+        </script>
+
+        <!-- Dark Mode Toggle -->
+        <div class="dark-mode-toggle">
+            <label for="darkModeSwitch">Dark Mode:</label>
+            <input type="checkbox" id="darkModeSwitch" onclick="toggleDarkMode()">
+        </div>
+
+        <!-- Total Books Counter -->
+        <div class="total-books">
+            <h3>Total Books: <span id="totalBooksCount">0</span></h3>
+        </div>
+
+        <!-- Add Book Form -->
+        <h3>Add Book</h3>
+        <form id="addBookForm" onsubmit="addBookToLibrary(event)">
+            <label for="title">Title:</label>
+            <input type="text" id="title" placeholder="Title" required>
+            
+            <label for="author">Author:</label>
+            <input type="text" id="author" placeholder="Author" required>
+            
+            <label for="year">Year:</label>
+            <input type="number" id="year" placeholder="Year" required min="1">
+            
+            <label for="quantity">Quantity:</label>
+            <input type="number" id="quantity" placeholder="Quantity" required min="1">
+
+            <button type="submit">Add Book</button>
+        </form>
+
+        <!-- Search Bar -->
+        <div class="search-bar">
+            <input type="text" id="searchQuery" placeholder="Search by title or author" oninput="searchBooks()">
+        </div>
+
+        <!-- Sort Books Dropdown -->
+        <div class="sort-books">
+            <label for="sortBooks">Sort By:</label>
+            <select id="sortBooks" onchange="sortBooks()">
+                <option value="title">Title</option>
+                <option value="author">Author</option>
+                <option value="year">Year</option>
+                <option value="quantity">Quantity</option>
+            </select>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('available-books')">Available Books</div>
+            <div class="tab" onclick="showTab('unavailable-books')">Unavailable Books</div>
+            <div class="tab admin-tab" onclick="showTab('registered-users')">Registered Users</div>
+        </div>
+
+        <!-- Available Books -->
+        <div id="available-books" class="tab-content active">
+            <div class="book-list">
+                <p class="empty-state">No available books found.</p>
+            </div>
+        </div>
+
+        <!-- Unavailable Books -->
+        <div id="unavailable-books" class="tab-content">
+            <div class="book-list">
+                <p class="empty-state">No unavailable books found.</p>
+            </div>
+        </div>
+
+        <!-- Registered Users -->
+        <div id="registered-users" class="tab-content">
+            <div class="users-list">
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Password</th>
+                            <th>Role</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                        <tr>
+                            <td colspan="4" class="empty-state">No registered users found.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Borrow History Section -->
+        <div class="borrow-history">
+            <h3>Borrow History</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Author</th>
+                        <th>Borrower</th>
+                        <th>Borrowed At</th>
+                        <th>Quantity</th>
+                    </tr>
+                </thead>
+                <tbody id="borrowHistoryTableBody">
+                    <tr>
+                        <td colspan="5" class="empty-state">No borrow history found.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Generate Report Button -->
+        <div class="generate-report">
+            <button onclick="generateBorrowedBooksReport()">Generate Borrowed Books Report</button>
+        </div>
+    </div>
+
+    <script>
+        // Function to update the book list
+        function updateBookList() {
+            const availableBooksDiv = document.getElementById('available-books').querySelector('.book-list');
+            const unavailableBooksDiv = document.getElementById('unavailable-books').querySelector('.book-list');
+
+            const availableBooks = libraryManager.books.filter(book => book.isAvailable);
+            const unavailableBooks = libraryManager.books.filter(book => !book.isAvailable);
+
+            availableBooksDiv.innerHTML = '';
+            if (availableBooks.length === 0) {
+                availableBooksDiv.innerHTML = '<p class="empty-state">No available books found.</p>';
+            } else {
+                availableBooks.forEach(book => {
+                    const bookDiv = document.createElement('div');
+                    bookDiv.className = 'book';
+                    bookDiv.innerHTML = `
+                        <p><strong>Title:</strong> ${book.title}</p>
+                        <p><strong>Author:</strong> ${book.author}</p>
+                        <p><strong>Year:</strong> ${book.year}</p>
+                        <p><strong>Quantity:</strong> ${book.quantity}</p>
+                        <button onclick="toggleBookAvailability(${book.id})">Mark as Unavailable</button>
+                    `;
+                    availableBooksDiv.appendChild(bookDiv);
+                });
+            }
+
+            unavailableBooksDiv.innerHTML = '';
+            if (unavailableBooks.length === 0) {
+                unavailableBooksDiv.innerHTML = '<p class="empty-state">No unavailable books found.</p>';
+            } else {
+                unavailableBooks.forEach(book => {
+                    const bookDiv = document.createElement('div');
+                    bookDiv.className = 'book';
+                    bookDiv.innerHTML = `
+                        <p><strong>Title:</strong> ${book.title}</p>
+                        <p><strong>Author:</strong> ${book.author}</p>
+                        <p><strong>Year:</strong> ${book.year}</p>
+                        <p><strong>Quantity:</strong> ${book.quantity}</p>
+                        <p><strong>Borrower:</strong> ${book.borrowerName}</p>
+                        <p><strong>Borrowed At:</strong> ${book.borrowTime}</p>
+                        <button onclick="toggleBookAvailability(${book.id})">Mark as Available</button>
+                    `;
+                    unavailableBooksDiv.appendChild(bookDiv);
+                });
+            }
+
+            // Update total books count
+            document.getElementById('totalBooksCount').innerText = libraryManager.books.length;
+
+            // Update borrow history
+            updateBorrowHistory();
+        }
+
+        // Function to update borrow history
+        function updateBorrowHistory() {
+            const borrowHistoryTableBody = document.getElementById('borrowHistoryTableBody');
+            const borrowedBooks = libraryManager.books.filter(book => !book.isOriginal);
+
+            borrowHistoryTableBody.innerHTML = '';
+            if (borrowedBooks.length === 0) {
+                borrowHistoryTableBody.innerHTML = '<tr><td colspan="5" class="empty-state">No borrow history found.</td></tr>';
+            } else {
+                borrowedBooks.forEach(book => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${book.title}</td>
+                        <td>${book.author}</td>
+                        <td>${book.borrowerName}</td>
+                        <td>${book.borrowTime}</td>
+                        <td>${book.borrowedQuantity}</td>
+                    `;
+                    borrowHistoryTableBody.appendChild(row);
+                });
+            }
+        }
+
+        // Add the new toggleBookAvailability function
+        function toggleBookAvailability(bookId) {
+            const book = libraryManager.books.find(book => book.id === bookId);
+            if (!book) return;
+
+            if (book.isAvailable) {
+                const borrowerName = prompt('Enter the borrower\'s name:');
+                const borrowTime = new Date().toLocaleString();
+                if (borrowerName) {
+                    libraryManager.updateBookQuantity(bookId, book.quantity - 1);
+                    libraryManager.addBook(book.title, book.author, book.year, 1, false, borrowerName, borrowTime);
+                }
+            } else {
+                libraryManager.updateBookQuantity(bookId, book.quantity - 1);
+                libraryManager.addBook(book.title, book.author, book.year, 1, true);
+            }
+
+            libraryManager.saveToLocalStorage();
+            updateBookList();
+        }
+
+        // Function to sort books
+        function sortBooks() {
+            const sortBy = document.getElementById('sortBooks').value;
+            libraryManager.books.sort((a, b) => {
+                if (a[sortBy] < b[sortBy]) return -1;
+                if (a[sortBy] > b[sortBy]) return 1;
+                return 0;
+            });
+            updateBookList();
+        }
+
+        // Function to toggle dark mode
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+            document.querySelector('.container').classList.toggle('dark-mode');
+            document.querySelectorAll('form').forEach(form => form.classList.toggle('dark-mode'));
+            document.querySelector('.search-bar').classList.toggle('dark-mode');
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('dark-mode'));
+            document.querySelectorAll('.book').forEach(book => book.classList.toggle('dark-mode'));
+            document.querySelectorAll('.empty-state').forEach(state => state.classList.toggle('dark-mode'));
+            document.querySelector('.sort-books').classList.toggle('dark-mode');
+            document.querySelector('.borrow-history').classList.toggle('dark-mode');
+        }
+
+        function logout() {
+            localStorage.removeItem('isAuthenticated');
+            window.location.href = 'login.html';
+        }
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>
