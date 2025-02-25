@@ -1,0 +1,2192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Load Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/11.2.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.2.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.2.0/firebase-database-compat.js"></script>
+    
+    <!-- Initialize Firebase first -->
+    <script src="./firebase-config.js"></script>
+    
+    <!-- Then load our services -->
+    <script src="./services/database.js" type="module"></script>
+    <script src="./services/auth.js" type="module"></script>
+    
+    <script>
+        // Add this before other functions
+        window.showAlert = function(message, type = 'info') {
+            // Remove existing alerts
+            const existingAlerts = document.querySelectorAll('.alert');
+            existingAlerts.forEach(alert => alert.remove());
+
+            // Create new alert
+            const alert = document.createElement('div');
+            alert.className = `alert ${type}`;
+            alert.innerHTML = `
+                <div class="alert-content">
+                    <span>${message}</span>
+                    <button onclick="this.parentElement.parentElement.remove()" class="alert-close">&times;</button>
+                </div>
+            `;
+            document.body.appendChild(alert);
+
+            // Add animation
+            setTimeout(() => {
+                alert.classList.add('show');
+            }, 10);
+
+            // Auto dismiss after 3 seconds
+            setTimeout(() => {
+                alert.classList.add('hiding');
+                setTimeout(() => alert.remove(), 300);
+            }, 3000);
+        };
+
+        // Add these styles to your existing styles
+        const alertStyles = `
+            .alert {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 1rem 2rem;
+                border-radius: 8px;
+                background: #3498db;
+                color: white;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                z-index: 1000;
+                transform: translateX(120%);
+                transition: transform 0.3s ease-out;
+                min-width: 200px;
+            }
+
+            .alert.show {
+                transform: translateX(0);
+            }
+
+            .alert.hiding {
+                transform: translateX(120%);
+            }
+
+            .alert-content {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 1rem;
+            }
+
+            .alert-close {
+                background: none;
+                border: none;
+                color: white;
+                font-size: 1.5rem;
+                cursor: pointer;
+                padding: 0;
+                opacity: 0.7;
+                transition: opacity 0.2s;
+            }
+
+            .alert-close:hover {
+                opacity: 1;
+            }
+
+            .alert.success { background: #2ecc71; }
+            .alert.error { background: #e74c3c; }
+            .alert.warning { background: #f1c40f; }
+        `;
+
+        // Add styles to document
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = alertStyles;
+        document.head.appendChild(styleSheet);
+
+        // Add these helper functions at the top of your script section
+        window.showModal = function(modal) {
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop';
+            document.body.appendChild(backdrop);
+            document.body.appendChild(modal);
+            
+            setTimeout(() => {
+                backdrop.classList.add('show');
+                modal.classList.add('show');
+            }, 10);
+        };
+
+        window.closeModal = function() {
+            const modal = document.querySelector('.modal');
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (modal && backdrop) {
+                modal.style.animation = 'scaleIn 0.3s ease-out reverse';
+                backdrop.style.animation = 'fadeIn 0.3s ease-out reverse';
+                setTimeout(() => {
+                    modal.remove();
+                    backdrop.remove();
+                }, 300);
+            }
+        };
+
+        // Define global functions first
+        window.logoutUser = async function() {
+            try {
+                await firebase.auth().signOut();
+                localStorage.clear();
+                sessionStorage.clear();
+                window.location.href = 'login.html';
+            } catch (error) {
+                console.error("Logout failed:", error);
+            }
+        };
+
+        window.showTab = function(tabId) {
+            // First hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.style.display = 'none';
+                tab.classList.remove('active');
+            });
+
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            const selectedTab = document.getElementById(tabId);
+            if (selectedTab) {
+                selectedTab.style.display = 'block';
+                selectedTab.classList.add('active');
+            }
+
+            // Update tab button state
+            const tabButton = document.querySelector(`[onclick="showTab('${tabId}')"]`);
+            if (tabButton) {
+                tabButton.classList.add('active');
+            }
+
+            // Refresh book lists when switching tabs
+            if (tabId === 'available-books' || tabId === 'unavailable-books') {
+                window.updateBookListUI();
+            }
+        };
+
+        window.toggleBookAvailability = async function(bookId) {
+            try {
+                const book = await window.DatabaseService.getBook(bookId);
+                if (!book) throw new Error('Book not found');
+
+                if (book.isAvailable) {
+                    // Show borrow modal with form
+                    const modal = document.createElement('div');
+                    modal.className = 'modal';
+                    modal.innerHTML = `
+                        <div class="modal-content">
+                            <h3>Borrow Book: ${book.title}</h3>
+                            <div class="form-group">
+                                <label for="borrowerName">Borrower's Name:</label>
+                                <input type="text" id="borrowerName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="borrowQuantity">Quantity (max: ${book.quantity}):</label>
+                                <input type="number" id="borrowQuantity" min="1" max="${book.quantity}" value="1" required>
+                            </div>
+                            <div class="modal-actions">
+                                <button onclick="handleBorrow('${book.id}')" class="borrow-btn">Confirm Borrow</button>
+                                <button onclick="closeModal()" class="cancel-btn">Cancel</button>
+                            </div>
+                        </div>
+                    `;
+
+                    // Add modal styles
+                    const styles = document.createElement('style');
+                    styles.textContent = `
+                        .modal-content { padding: 20px; background: #fff; border-radius: 8px; }
+                        .form-group { margin-bottom: 15px; }
+                        .form-group label { display: block; margin-bottom: 5px; font-weight: 500; }
+                        .form-group input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+                        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+                        .borrow-btn { background: #3498db; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+                        .cancel-btn { background: #95a5a6; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+                        .borrow-btn:hover { background: #2980b9; }
+                        .cancel-btn:hover { background: #7f8c8d; }
+                    `;
+                    modal.appendChild(styles);
+
+                    showModal(modal);
+                } else {
+                    if (confirm('Do you want to return this book?')) {
+                        await window.DatabaseService.returnBook(bookId);
+                        showAlert('Book returned successfully!', 'success');
+                    }
+                }
+
+                await window.updateBookListUI();
+            } catch (error) {
+                console.error("Error toggling book availability:", error);
+                showAlert(error.message, 'error');
+            }
+        };
+
+        window.handleBorrow = async function(bookId) {
+            try {
+                const borrowerName = document.getElementById('borrowerName').value;
+                const quantity = parseInt(document.getElementById('borrowQuantity').value);
+                
+                if (!borrowerName || !borrowerName.trim()) {
+                    showAlert('Please enter borrower name', 'error');
+                    return;
+                }
+
+                const book = await window.DatabaseService.getBook(bookId);
+                if (!book) throw new Error('Book not found');
+
+                if (!quantity || quantity <= 0 || quantity > book.quantity) {
+                    showAlert('Invalid quantity', 'error');
+                    return;
+                }
+
+                const borrowedBook = {
+                    ...book,
+                    id: window.DatabaseService.generateNewId(),
+                    originalBookId: book.id,
+                    isAvailable: false,
+                    borrowerName: borrowerName.trim(),
+                    borrowTime: new Date().toISOString(),
+                    borrowedQuantity: quantity
+                };
+
+                const originalBook = {
+                    ...book,
+                    quantity: book.quantity - quantity,
+                    isAvailable: (book.quantity - quantity) > 0
+                };
+
+                await Promise.all([
+                    window.DatabaseService.updateBook(bookId, originalBook),
+                    window.DatabaseService.addBorrowedBook(borrowedBook)
+                ]);
+                
+                closeModal();
+                showAlert('Book borrowed successfully!', 'success');
+                await window.updateBookListUI();
+            } catch (error) {
+                console.error("Error borrowing book:", error);
+                showAlert(error.message, 'error');
+            }
+        };
+
+        // Add dark mode toggle function
+        function toggleDarkMode() {
+            const body = document.body;
+            const icon = document.getElementById('darkModeIcon');
+            const container = document.querySelector('.container');
+            
+            body.classList.toggle('dark-mode');
+            icon.classList.toggle('fa-moon');
+            icon.classList.toggle('fa-sun');
+            
+            // Save preference
+            localStorage.setItem('darkMode', body.classList.contains('dark-mode'));
+        }
+
+        // Load dark mode preference
+        document.addEventListener('DOMContentLoaded', () => {
+            if (localStorage.getItem('darkMode') === 'true') {
+                toggleDarkMode();
+            }
+        });
+
+        // Add these functions at the start of your scripts
+        function initializeDarkMode() {
+            const prefersDark = localStorage.getItem('darkMode') === 'true';
+            if (prefersDark) {
+                document.body.classList.add('dark-mode');
+                updateDarkModeIcon(true);
+            }
+        }
+
+        function updateDarkModeIcon(isDark) {
+            const icon = document.getElementById('darkModeIcon');
+            if (icon) {
+                icon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
+            }
+        }
+
+        function toggleDarkMode() {
+            const isDark = document.body.classList.toggle('dark-mode');
+            localStorage.setItem('darkMode', isDark);
+            updateDarkModeIcon(isDark);
+        }
+
+        // Add this to your DOMContentLoaded event
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeDarkMode();
+            // ...existing DOMContentLoaded code...
+        });
+    </script>
+
+    <script type="module">
+        import AuthService from './services/auth.js';
+        import DatabaseService from './services/database.js';
+        import { generateUniqueId } from './services/utils.js';
+
+        // Make services globally available
+        window.AuthService = AuthService;
+        window.DatabaseService = DatabaseService;
+
+        // Function to update the book list
+        window.updateBookListUI = async function() {
+            try {
+                const books = await DatabaseService.loadBooks();
+                const booksArray = Object.values(books);
+                
+                const availableBooks = booksArray.filter(book => book.isAvailable);
+                const borrowedBooks = booksArray.filter(book => !book.isAvailable);
+
+                // Update available books tab
+                const availableBooksDiv = document.querySelector('#available-books .book-list');
+                availableBooksDiv.innerHTML = availableBooks.length ? 
+                    availableBooks.map(book => `
+                        <div class="book">
+                            <p><strong>Title:</strong> ${book.title}</p>
+                            <p><strong>Author:</strong> ${book.author}</p>
+                            <p><strong>Year:</strong> ${book.year}</p>
+                            <p><strong>Available Quantity:</strong> ${book.quantity}</p>
+                            <div class="book-actions">
+                                ${book.quantity > 0 ? 
+                                    `<button onclick="toggleBookAvailability('${book.id}')">Borrow</button>` : 
+                                    `<button disabled>Out of Stock</button>`}
+                                <button onclick="removeBook('${book.id}')" class="remove-btn">Remove Book</button>
+                            </div>
+                        </div>
+                    `).join('') : '<p class="empty-state">No available books found.</p>';
+
+                // Update borrowed books tab
+                const borrowedBooksDiv = document.querySelector('#borrowed-books .book-list');
+                borrowedBooksDiv.innerHTML = borrowedBooks.length ? 
+                    borrowedBooks.map(book => `
+                        <div class="book">
+                            <p><strong>Title:</strong> ${book.title}</p>
+                            <p><strong>Author:</strong> ${book.author}</p>
+                            <p><strong>Year:</strong> ${book.year}</p>
+                            <p><strong>Borrowed Quantity:</strong> ${book.borrowedQuantity || 1}</p>
+                            <p><strong>Borrower:</strong> ${book.borrowerName || 'N/A'}</p>
+                            <p><strong>Borrowed At:</strong> ${new Date(book.borrowTime).toLocaleString()}</p>
+                            <div class="book-actions">
+                                <button onclick="toggleBookAvailability('${book.id}')">Return</button>
+                                <button onclick="removeBook('${book.id}')" class="remove-btn">Remove Book</button>
+                            </div>
+                        </div>
+                    `).join('') : '<p class="empty-state">No borrowed books found.</p>';
+
+                // Calculate total quantity of books
+                const totalQuantity = booksArray.reduce((total, book) => {
+                    return total + (parseInt(book.quantity) || 0) + (parseInt(book.borrowedQuantity) || 0);
+                }, 0);
+
+                // Update total count
+                document.getElementById('totalBooksCount').innerText = totalQuantity;
+            } catch (error) {
+                console.error("Error updating book list:", error);
+            }
+        };
+
+        // Add remove book function
+        window.removeBook = async function(bookId) {
+            if (confirm('Are you sure you want to remove this book?')) {
+                try {
+                    await DatabaseService.deleteBook(bookId);
+                    await updateBookListUI();
+                    alert('Book removed successfully');
+                } catch (error) {
+                    console.error("Error removing book:", error);
+                    alert('Failed to remove book');
+                }
+            }
+        };
+
+        // Check auth state on load
+        firebase.auth().onAuthStateChanged((user) => {
+            if (!user) {
+                window.location.href = 'login.html';
+            } else {
+                // Fetch user role and update UI
+                AuthService.getUserRole(user.uid).then(role => {
+                    document.body.setAttribute('data-role', role);
+                    document.getElementById('currentRole').textContent = role;
+                });
+            }
+        });
+
+        // Simple logout function
+        async function logoutUser() {
+            try {
+                await firebase.auth().signOut();
+                localStorage.clear();
+                sessionStorage.clear();
+                window.location.href = 'login.html';
+            } catch (error) {
+                console.error("Logout failed:", error);
+            }
+        }
+
+        // Add book form submission handler
+        document.getElementById('addBookForm').onsubmit = async (event) => {
+            event.preventDefault();
+            const bookData = {
+                title: document.getElementById('title').value,
+                author: document.getElementById('author').value,
+                year: parseInt(document.getElementById('year').value),
+                quantity: parseInt(document.getElementById('quantity').value)
+            };
+            
+            try {
+                await DatabaseService.addBook(bookData);
+                event.target.reset();
+                updateBookListUI();
+            } catch (error) {
+                console.error("Error adding book:", error);
+                alert('Failed to add book');
+            }
+        };
+
+        // Initialize book list
+        document.addEventListener('DOMContentLoaded', () => {
+            window.updateBookListUI();
+            // Watch for changes
+            DatabaseService.watchBooks(() => window.updateBookListUI());
+        });
+
+        // Update book form submission handler
+        async function addBookToLibrary(event) {
+            event.preventDefault();
+            const form = event.target;
+            
+            try {
+                const bookData = {
+                    title: form.title.value,
+                    author: form.author.value,
+                    year: parseInt(form.year.value),
+                    quantity: parseInt(form.quantity.value)
+                };
+
+                await DatabaseService.addBook(bookData);
+                form.reset();
+                await updateBookListUI();
+                alert('Book added successfully!');
+            } catch (error) {
+                console.error("Error adding book:", error);
+                alert('Failed to add book: ' + error.message);
+            }
+        }
+
+        // Update showTab function
+        function showTab(tabId) {
+            // First hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.style.display = 'none';
+                tab.classList.remove('active');
+            });
+
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            const selectedTab = document.getElementById(tabId);
+            if (selectedTab) {
+                selectedTab.style.display = 'block';
+                selectedTab.classList.add('active');
+            }
+
+            // Update tab button state
+            const tabButton = document.querySelector(`[onclick="showTab('${tabId}')"]`);
+            if (tabButton) {
+                tabButton.classList.add('active');
+            }
+
+            // Refresh book lists when switching tabs
+            if (tabId === 'available-books' || tabId === 'unavailable-books') {
+                updateBookListUI();
+            }
+        }
+    </script>
+
+    <style>
+    /* General Styles */
+    body {
+        font-family: 'Roboto', sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f3f7f9;
+        color: #333;
+        transition: background-color 0.3s, color 0.3s;
+    }
+
+    .container {
+        max-width: 1200px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+        transition: background 0.3s, color 0.3s;
+    }
+
+    /* Form Styles */
+    form {
+        margin-bottom: 2rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        background: #f9f9f9;
+        padding: 1.5rem;
+        border-radius: 12px;
+        transition: background 0.3s, color 0.3s;
+    }
+
+    form label {
+        flex: 1 0 100%;
+        font-weight: 500;
+        color: #2c3e50;
+        margin-bottom: 0.5rem;
+        transition: color 0.3s;
+    }
+
+    form input {
+        flex: 1 1 calc(50% - 1rem);
+        padding: 0.8rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.3s, color 0.3s;
+    }
+
+    form input:focus {
+        border-color: #3498db;
+        box-shadow: 0 0 5px rgba(52, 152, 219, 0.5);
+        outline: none;
+    }
+
+    form button {
+        flex: 1 1 100%;
+        padding: 0.8rem;
+        background-color: #3498db;
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        font-size: 1.2rem;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+
+    form button:hover {
+        background-color: #2980b9;
+        transform: translateY(-2px);
+    }
+
+    /* Search Bar Styles */
+    .search-bar {
+        margin-bottom: 2rem;
+        display: flex;
+        gap: 1rem;
+    }
+
+    .search-bar input {
+        flex: 1;
+        padding: 0.8rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.3s, color 0.3s;
+    }
+
+    .search-bar input:focus {
+        border-color: #3498db;
+        box-shadow: 0 0 5px rgba(52, 152, 219, 0.5);
+        outline: none;
+    }
+
+    /* Tabs Styles */
+    .tabs {
+        display: flex;
+        border-bottom: 2px solid #ddd;
+        margin-bottom: 2rem;
+        background: transparent;
+        gap: 0.5rem;
+    }
+
+    .tab {
+        padding: 1rem 2rem;
+        cursor: pointer;
+        font-weight: 500;
+        color: #333;
+        background: transparent;
+        border: none;
+        border-radius: 8px 8px 0 0;
+        transition: all 0.3s ease;
+    }
+
+    .tab.active {
+        background: #3498db;
+        color: #fff;
+    }
+
+    /* Dark Mode Tab Overrides */
+    .dark-mode .tabs {
+        border-color: #404040;
+    }
+
+    .dark-mode .tab {
+        color: #e0e0e0;
+    }
+
+    .dark-mode .tab.active {
+        background: #2980b9;
+        color: #fff;
+    }
+
+    .dark-mode .tab:hover:not(.active) {
+        background: #363636;
+        color: #3498db;
+    }
+
+    /* Remove any conflicting styles */
+    .tab-content {
+        display: none;
+        background: transparent;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* Tab content styles */
+    .tab-content {
+        background: #fff;
+        border-radius: 8px;
+        padding: 2rem;
+        margin-top: 1rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .dark-mode .tab-content {
+        background: #2d2d2d;
+        color: #e0e0e0;
+    }
+
+    /* Remove conflicting styles */
+    .tab-content.active {
+        display: block;
+        opacity: 1;
+        transform: none;
+        animation: none;
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* Book List Styles */
+    .book-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        border-bottom: 2px solid #ddd;
+        margin-bottom: 2rem;
+    }
+
+    .tab {
+        padding: 1rem 2rem;
+        cursor: pointer;
+        font-weight: 500;
+        color: #555;
+        transition: color 0.3s ease, border-color 0.3s ease;
+        border-bottom: 2px solid transparent;
+    }
+
+    .tab:hover, .tab.active {
+        color: #3498db;
+        border-color: #3498db;
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* Book List Styles */
+    .book-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .book {
+        padding: 1.5rem;
+        background-color: #ffffff;
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.3s, color 0.3s;
+        animation: fadeInUp 0.3s ease-out;
+    }
+
+    .book:hover {
+        transform: translateY(-5px) scale(1.02);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .book p {
+        margin: 0.5rem 0;
+        color: #555;
+        transition: color 0.3s;
+    }
+
+    .book button {
+        margin-top: 0.5rem;
+        padding: 0.5rem 1rem;
+        background-color: #e74c3c;
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+
+    .book button:hover {
+        background-color: #c0392b;
+        transform: translateY(-2px);
+    }
+
+    .book input[type="number"] {
+        width: 80px;
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: background 0.3s, color 0.3s;
+    }
+
+    /* Empty State Styles */
+    .empty-state {
+        text-align: center;
+        color: #7f8c8d;
+        font-size: 1.2rem;
+        margin: 2rem 0;
+        transition: color 0.3s;
+    }
+
+    /* Sort Books Styles */
+    .sort-books {
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .sort-books label {
+        font-weight: 500;
+        color: #2c3e50;
+    }
+
+    .sort-books select {
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .sort-books select:focus {
+        border-color: #3498db;
+        box-shadow: 0 0 5px rgba(52, 152, 219, 0.5);
+        outline: none;
+    }
+
+    /* Borrow History Styles */
+    .borrow-history {
+        margin-top: 2rem;
+        background: #f9f9f9;
+        padding: 1.5rem;
+        border-radius: 12px;
+        transition: background 0.3s, color 0.3s;
+    }
+
+    .borrow-history h3 {
+        margin-top: 0;
+    }
+
+    .borrow-history table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .borrow-history th, .borrow-history td {
+        padding: 0.8rem;
+        border: 1px solid #ddd;
+        text-align: left;
+    }
+
+    .borrow-history th {
+        background-color: #3498db;
+        color: #ffffff;
+    }
+
+    .borrow-history td {
+        background-color: #ffffff;
+        color: #333;
+    }
+
+    /* Generate Report Button Styles */
+    .generate-report {
+        display: flex;
+        justify-content: center;
+        margin-top: 2rem;
+    }
+
+    .generate-report button {
+        padding: 0.8rem 1.5rem;
+        background-color: #2ecc71;
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        font-size: 1.2rem;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+
+    .generate-report button:hover {
+        background-color: #27ae60;
+        transform: translateY(-2px);
+    }
+
+    .user-controls {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        display: flex;
+        gap: 1rem;
+    }
+
+    .logout-button {
+        padding: 0.5rem 1rem;
+        background-color: #e74c3c;
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+
+    .logout-button:hover {
+        background-color: #c0392b;
+        transform: translateY(-2px);
+    }
+
+    /* Responsive Styles */
+    @media (max-width: 768px) {
+        form input {
+            flex: 1 1 100%;
+        }
+        form button {
+            flex: 1 1 100%;
+        }
+        .search-bar {
+            flex-direction: column;
+        }
+    }
+
+    /* Users List Styles */
+    .users-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+        background: #ffffff;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .users-table th,
+    .users-table td {
+        padding: 1rem;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
+
+    .users-table th {
+        background-color: #3498db;
+        color: #ffffff;
+    }
+
+    .users-table tr:hover {
+        background-color: #f5f5f5;
+    }
+
+    .admin-only {
+        display: none;
+    }
+
+    .delete-user {
+        padding: 0.5rem 1rem;
+        background-color: #e74c3c;
+        color: #ffffff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+    }
+
+    .delete-user:hover {
+        background-color: #c0392b;
+    }
+
+    .admin-tab {
+        display: none;
+    }
+
+    /* Show admin tab when user is admin */
+    body[data-role="admin"] .admin-tab {
+        display: block;
+    }
+
+    .init-db-button {
+        background-color: #2ecc71;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 10px 0;
+    }
+
+    .init-db-button:hover {
+        background-color: #27ae60;
+    }
+
+    .book-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .remove-btn {
+        background-color: #e74c3c;
+    }
+
+    .remove-btn:hover {
+        background-color: #c0392b;
+    }
+
+    /* Animation Keyframes */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes scaleIn {
+        from {
+            opacity: 0;
+            transform: scale(0.9);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    /* Modal Styles */
+    .modal {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 5px 30px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+        animation: scaleIn 0.3s ease-out;
+    }
+
+    .modal.show {
+        display: block;
+    }
+
+    .modal-backdrop {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+        animation: fadeIn 0.3s ease-out;
+    }
+
+    .modal-backdrop.show {
+        display: block;
+    }
+
+    /* Tab content animation */
+    .tab-content {
+        opacity: 0;
+        transform: translateY(10px);
+        transition: all 0.3s ease-out;
+    }
+
+    .tab-content.active {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    /* Alert styles */
+    .alert {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 1rem 2rem;
+        border-radius: 8px;
+        background: #3498db;
+        color: white;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateX(100%);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    /* Book Controls Layout */
+    .book-controls {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        padding: 1rem;
+        background: #f5f5f5;
+        border-radius: 8px;
+        animation: fadeInUp 0.3s ease-out;
+    }
+
+    .tab.active {
+        background: #3498db;
+        color: white;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .tab-content {
+        padding: 2rem;
+        background: white;
+        border-radius: 0 0 8px 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    /* Enhance tab transitions */
+    .tab-content {
+        opacity: 0;
+        transform: translateY(10px);
+        transition: all 0.3s ease-out;
+    }
+
+    .tab-content.active {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    /* Add animation for switching tabs */
+    @keyframes tabFadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .tab-content.active {
+        animation: tabFadeIn 0.3s ease-out forwards;
+    }
+
+    /* Top Search Bar Styles */
+    .top-search-bar {
+        width: 100%;
+        margin: 1rem 0 2rem 0;
+        position: relative;
+    }
+
+    .top-search-bar input {
+        width: 100%;
+        padding: 1rem;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        font-size: 1.1rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .top-search-bar input:focus {
+        border-color: #3498db;
+        box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+        outline: none;
+    }
+
+    /* Add these styles for the top controls */
+    .top-controls {
+        display: flex;
+        gap: 1rem;
+        margin: 1rem 0 2rem 0;
+        align-items: center;
+    }
+
+    .top-search-bar {
+        flex: 1;
+    }
+
+    .top-search-bar input {
+        width: 100%;
+        padding: 1rem;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        font-size: 1.1rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .top-sort select {
+        padding: 1rem;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        font-size: 1.1rem;
+        background: white;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        min-width: 150px;
+    }
+
+    .top-sort select:hover, 
+    .top-search-bar input:hover {
+        border-color: #3498db;
+    }
+
+    .top-sort select:focus, 
+    .top-search-bar input:focus {
+        border-color: #3498db;
+        box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+        outline: none;
+    }
+
+    /* Add these new styles */
+    .top-controls {
+        display: flex;
+        gap: 1.5rem;
+        margin: 2rem 0;
+        align-items: center;
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .search-container {
+        flex: 1;
+        position: relative;
+    }
+
+    .search-container input {
+        width: 100%;
+        padding: 1rem 1.5rem;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 1.1rem;
+        transition: all 0.3s ease;
+    }
+
+    .search-container input:focus {
+        border-color: #3498db;
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        outline: none;
+    }
+
+    .sort-container select {
+        padding: 1rem 2rem;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 1.1rem;
+        background: white;
+        cursor: pointer;
+        min-width: 180px;
+        appearance: none;
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 1rem center;
+        background-size: 1em;
+    }
+
+    .sort-container select:focus {
+        border-color: #3498db;
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+        outline: none;
+    }
+
+    /* Dark Mode Styles */
+    body.dark-mode {
+        background-color: #1e1e1e;
+        color: #e0e0e0;
+    }
+
+    .dark-mode .container {
+        background: #2d2d2d;
+    }
+
+    .dark-mode form {
+        background: #3b3b3b;
+    }
+
+    .dark-mode form label {
+        color: #e0e0e0;
+    }
+
+    .dark-mode form input,
+    .dark-mode .search-container input,
+    .dark-mode .sort-container select {
+        background-color: #444;
+        border-color: #555;
+        color: #e0e0e0;
+    }
+
+    .dark-mode .book {
+        background-color: #3b3b3b;
+        border-color: #555;
+    }
+
+    .dark-mode .book p {
+        color: #e0e0e0;
+    }
+
+    .dark-mode .tabs {
+        border-color: #555;
+    }
+
+    .dark-mode .tab {
+        color: #e0e0e0;
+    }
+
+    .dark-mode .tab:hover, 
+    .dark-mode .tab.active {
+        color: #3498db;
+    }
+
+    .dark-mode .top-controls {
+        background: #3b3b3b;
+    }
+
+    .dark-mode .borrow-history {
+        background: #3b3b3b;
+    }
+
+    .dark-mode .borrow-history td {
+        background: #2d2d2d;
+        color: #e0e0e0;
+    }
+
+    .dark-mode .empty-state {
+        color: #888;
+    }
+
+    /* Dark mode toggle button */
+    .dark-mode-toggle {
+        position: fixed;
+        top: 1rem;
+        left: 1rem;
+        background: #3498db;
+        color: #fff;
+        padding: 0.8rem;
+        border-radius: 50%;
+        cursor: pointer;
+        z-index: 1000;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        border: none;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    .dark-mode-toggle:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+
+    .dark-mode .modal-content {
+        background: #2d2d2d;
+        color: #e0e0e0;
+    }
+
+    .dark-mode .modal-content input {
+        background: #444;
+        border-color: #555;
+        color: #e0e0e0;
+    }
+
+    /* Dark Mode Toggle Button */
+    .dark-mode-toggle {
+        position: fixed;
+        top: 1rem;
+        left: 1rem;
+        background: #3498db;
+        color: #fff;
+        padding: 0.8rem;
+        border-radius: 50%;
+        cursor: pointer;
+        z-index: 1000;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        border: none;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    .dark-mode-toggle:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+
+    /* Dark Mode Styles */
+    .dark-mode {
+        background-color: #1a1a1a;
+        color: #e0e0e0;
+    }
+
+    .dark-mode .container {
+        background: #2d2d2d;
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    .dark-mode .book {
+        background: #363636;
+        border-color: #404040;
+    }
+
+    .dark-mode .book p {
+        color: #e0e0e0;
+    }
+
+    .dark-mode input,
+    .dark-mode select,
+    .dark-mode textarea {
+        background: #363636;
+        border-color: #404040;
+        color: #e0e0e0;
+    }
+
+    .dark-mode .top-controls {
+        background: #363636;
+    }
+
+    .dark-mode .tab-content {
+        background: #2d2d2d;
+    }
+
+    .dark-mode .modal-content {
+        background: #2d2d2d;
+        color: #e0e0e0;
+    }
+
+    .dark-mode .borrow-history {
+        background: #363636;
+    }
+
+    .dark-mode .borrow-history table {
+        background: #2d2d2d;
+    }
+
+    .dark-mode .borrow-history th {
+        background: #404040;
+    }
+
+    .dark-mode .borrow-history td {
+        border-color: #404040;
+        color: #e0e0e0;
+    }
+
+    .dark-mode .empty-state {
+        color: #888;
+    }
+
+    /* Improve form contrast in dark mode */
+    .dark-mode form {
+        background: #363636;
+    }
+
+    .dark-mode form label {
+        color: #e0e0e0;
+    }
+
+    .dark-mode .sort-container select,
+    .dark-mode .search-container input {
+        background: #363636;
+        border-color: #404040;
+        color: #e0e0e0;
+    }
+
+    /* Add VFX Styles */
+    .container {
+        animation: fadeIn 0.6s ease-out;
+    }
+
+    .book {
+        transform-origin: center;
+        animation: bookAppear 0.5s ease-out backwards;
+    }
+
+    .tab {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .tab::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: #3498db;
+        transform: scaleX(0);
+        transform-origin: right;
+        transition: transform 0.3s ease;
+    }
+
+    .tab:hover::after {
+        transform: scaleX(1);
+        transform-origin: left;
+    }
+
+    .tab.active::after {
+        transform: scaleX(1);
+    }
+
+    .form-group input:focus,
+    .search-container input:focus {
+        transform: scale(1.01);
+    }
+
+    /* Animation Keyframes */
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes bookAppear {
+        from {
+            opacity: 0;
+            transform: translateY(20px) scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    /* Stagger animations for books */
+    .book-list .book:nth-child(n) {
+        animation-delay: calc(0.1s * var(--i, 0));
+    }
+
+    /* Smooth transitions for dark mode */
+    .dark-mode .container,
+    .dark-mode .book,
+    .dark-mode .tab-content {
+        transition: background-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    /* Button hover effects */
+    button:not(.dark-mode-toggle) {
+        position: relative;
+        overflow: hidden;
+    }
+
+    button:not(.dark-mode-toggle)::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 150%;
+        height: 150%;
+        background: rgba(255, 255, 255, 0.2);
+        transform: translate(-50%, -50%) rotate(45deg) translateX(-200%);
+        transition: transform 0.6s ease;
+    }
+
+    button:not(.dark-mode-toggle):hover::after {
+        transform: translate(-50%, -50%) rotate(45deg) translateX(100%);
+    }
+    </style>
+</head>
+<body>
+    <!-- Replace the dark mode toggle button -->
+    <button class="dark-mode-toggle" onclick="toggleDarkMode()" aria-label="Toggle dark mode">
+        <i id="darkModeIcon" class="fas fa-moon"></i>
+    </button>
+
+    <!-- Add Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <div class="container">
+        <h1>Library Manager</h1>
+
+        <!-- Replace the search and sort controls -->
+        <div class="top-controls">
+            <div class="search-container">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="Search by title or author..."
+                >
+            </div>
+            <div class="sort-container">
+                <select id="sortSelect">
+                    <option value="">Sort by...</option>
+                    <option value="title">Title</option>
+                    <option value="author">Author</option>
+                    <option value="year">Year</option>
+                    <option value="quantity">Quantity</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="user-controls">
+            <span class="user-role">Role: <span id="currentRole"></span></span>
+            <!-- Update logout button to use a direct function -->
+            <button onclick="logoutUser()" class="logout-button">Logout</button>
+        </div>
+
+        <script>
+            // Update the displayed role
+            document.getElementById('currentRole').textContent = 
+                localStorage.getItem('userRole') || 'Guest';
+        </script>
+
+        <!-- Modify the Tabs section -->
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('add-books')">Books</div>
+            <div class="tab" onclick="showTab('available-books')">Available Books</div>
+            <div class="tab" onclick="showTab('borrowed-books')">Borrowed Books</div>
+        </div>
+
+        <!-- Add new Books tab content -->
+        <div id="add-books" class="tab-content active">
+            <h3>Add New Book</h3>
+            <form id="addBookForm" onsubmit="addBookToLibrary(event)">
+                <label for="title">Title:</label>
+                <input type="text" id="title" placeholder="Title" required>
+                
+                <label for="author">Author:</label>
+                <input type="text" id="author" placeholder="Author" required>
+                
+                <label for="year">Year:</label>
+                <input type="number" id="year" placeholder="Year" required min="1">
+                
+                <label for="quantity">Quantity:</label>
+                <input type="number" id="quantity" placeholder="Quantity" required min="1">
+
+                <button type="submit">Add Book</button>
+            </form>
+
+            <!-- Add Total Books Counter here -->
+            <div class="total-books">
+                <h3>Total Books: <span id="totalBooksCount">0</span></h3>
+            </div>
+        </div>
+
+        <!-- Available Books tab -->
+        <div id="available-books" class="tab-content">
+            <div class="book-list"></div>
+        </div>
+
+        <!-- Borrowed Books tab (renamed from unavailable-books) -->
+        <div id="borrowed-books" class="tab-content">
+            <div class="book-list"></div>
+        </div>
+
+        <!-- Registered Users -->
+        <div id="registered-users" class="tab-content">
+            <div class="users-list">
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Password</th>
+                            <th>Role</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                        <tr>
+                            <td colspan="4" class="empty-state">No registered users found.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Borrow History Section -->
+        <div class="borrow-history">
+            <h3>Borrow History</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Author</th>
+                        <th>Borrower</th>
+                        <th>Borrowed At</th>
+                        <th>Quantity</th>
+                    </tr>
+                </thead>
+                <tbody id="borrowHistoryTableBody">
+                    <tr>
+                        <td colspan="5" class="empty-state">No borrow history found.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Generate Report Button -->
+        <div class="generate-report">
+            <button onclick="generateBorrowedBooksReport()">Generate Borrowed Books Report</button>
+        </div>
+
+        <!-- Add this in the admin section -->
+        <div class="admin-only">
+            <button onclick="initializeDatabase()" class="init-db-button">Initialize Database</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import DatabaseService from './services/database.js';
+        import { generateUniqueId } from './services/utils.js';
+
+        // Function to update the book list
+        async function updateBookListUI(booksToDisplay = null) {
+            try {
+                const books = booksToDisplay || await DatabaseService.loadBooks();
+                const booksArray = Object.values(books);
+                
+                const availableBooks = booksArray.filter(book => book.isAvailable);
+                const borrowedBooks = booksArray.filter(book => !book.isAvailable);
+
+                // Update available books tab
+                const availableBooksDiv = document.querySelector('#available-books .book-list');
+                availableBooksDiv.innerHTML = availableBooks.length ? 
+                    availableBooks.map(book => `
+                        <div class="book">
+                            <p><strong>Title:</strong> ${book.title}</p>
+                            <p><strong>Author:</strong> ${book.author}</p>
+                            <p><strong>Year:</strong> ${book.year}</p>
+                            <p><strong>Available Quantity:</strong> ${book.quantity}</p>
+                            <div class="book-actions">
+                                ${book.quantity > 0 ? 
+                                    `<button onclick="toggleBookAvailability('${book.id}')">Borrow</button>` : 
+                                    `<button disabled>Out of Stock</button>`}
+                                <button onclick="removeBook('${book.id}')" class="remove-btn">Remove Book</button>
+                            </div>
+                        </div>
+                    `).join('') : '<p class="empty-state">No available books found.</p>';
+
+                // Update borrowed books tab
+                const borrowedBooksDiv = document.querySelector('#borrowed-books .book-list');
+                borrowedBooksDiv.innerHTML = borrowedBooks.length ? 
+                    borrowedBooks.map(book => `
+                        <div class="book">
+                            <p><strong>Title:</strong> ${book.title}</p>
+                            <p><strong>Author:</strong> ${book.author}</p>
+                            <p><strong>Year:</strong> ${book.year}</p>
+                            <p><strong>Borrowed Quantity:</strong> ${book.borrowedQuantity || 1}</p>
+                            <p><strong>Borrower:</strong> ${book.borrowerName || 'N/A'}</p>
+                            <p><strong>Borrowed At:</strong> ${new Date(book.borrowTime).toLocaleString()}</p>
+                            <div class="book-actions">
+                                <button onclick="toggleBookAvailability('${book.id}')">Return</button>
+                                <button onclick="removeBook('${book.id}')" class="remove-btn">Remove Book</button>
+                            </div>
+                        </div>
+                    `).join('') : '<p class="empty-state">No borrowed books found.</p>';
+
+                // Calculate total quantity of books
+                const totalQuantity = booksArray.reduce((total, book) => {
+                    return total + (parseInt(book.quantity) || 0) + (parseInt(book.borrowedQuantity) || 0);
+                }, 0);
+
+                // Update total count
+                document.getElementById('totalBooksCount').innerText = totalQuantity;
+            } catch (error) {
+                console.error("Error updating book list:", error);
+            }
+        }
+
+        // Add book form submission handler
+        document.getElementById('addBookForm').onsubmit = async (event) => {
+            event.preventDefault();
+            const bookData = {
+                title: document.getElementById('title').value,
+                author: document.getElementById('author').value,
+                year: parseInt(document.getElementById('year').value),
+                quantity: parseInt(document.getElementById('quantity').value)
+            };
+            
+            try {
+                await DatabaseService.addBook(bookData);
+                event.target.reset();
+                updateBookListUI();
+            } catch (error) {
+                console.error("Error adding book:", error);
+                alert('Failed to add book');
+            }
+        };
+
+        // Initialize book list
+        document.addEventListener('DOMContentLoaded', () => {
+            updateBookListUI();
+            // Watch for changes
+            DatabaseService.watchBooks(() => updateBookListUI());
+        });
+
+        // Update book form submission handler
+        async function addBookToLibrary(event) {
+            event.preventDefault();
+            const form = event.target;
+            
+            try {
+                const bookData = {
+                    title: form.title.value,
+                    author: form.author.value,
+                    year: parseInt(form.year.value),
+                    quantity: parseInt(form.quantity.value)
+                };
+
+                await DatabaseService.addBook(bookData);
+                form.reset();
+                await updateBookListUI();
+                alert('Book added successfully!');
+            } catch (error) {
+                console.error("Error adding book:", error);
+                alert('Failed to add book: ' + error.message);
+            }
+        }
+
+        // Replace alert with custom animated alert
+        function showAlert(message, type = 'info') {
+            const alert = document.createElement('div');
+            alert.className = `alert ${type}`;
+            alert.textContent = message;
+            document.body.appendChild(alert);
+
+            setTimeout(() => {
+                alert.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => alert.remove(), 300);
+            }, 3000);
+        }
+
+        // Add modal helper functions
+        function showModal(modal) {
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop';
+            document.body.appendChild(backdrop);
+            document.body.appendChild(modal);
+            
+            // Trigger animations
+            setTimeout(() => {
+                backdrop.classList.add('show');
+                modal.classList.add('show');
+            }, 10);
+        }
+
+        function closeModal() {
+            const modal = document.querySelector('.modal');
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (modal && backdrop) {
+                modal.style.animation = 'scaleIn 0.3s ease-out reverse';
+                backdrop.style.animation = 'fadeIn 0.3s ease-out reverse';
+                setTimeout(() => {
+                    modal.remove();
+                    backdrop.remove();
+                }, 300);
+            }
+        }
+
+        // Add borrow handler
+        window.handleBorrow = async function(bookId) {
+            const borrowerName = document.getElementById('borrowerName').value;
+            const quantity = parseInt(document.getElementById('borrowQuantity').value);
+            const book = await window.DatabaseService.getBook(bookId);
+
+            if (!borrowerName || !quantity) {
+                showAlert('Please fill in all fields', 'error');
+                return;
+            }
+
+            if (quantity > book.quantity) {
+                showAlert('Invalid quantity', 'error');
+                return;
+            }
+
+            const borrowedBook = {
+                ...book,
+                id: window.DatabaseService.generateNewId(),
+                originalBookId: book.id,
+                isAvailable: false,
+                borrowerName: borrowerName,
+                borrowTime: new Date().toISOString(),
+                borrowedQuantity: quantity
+            };
+
+            const originalBook = {
+                ...book,
+                quantity: book.quantity - quantity,
+                isAvailable: (book.quantity - quantity) > 0
+            };
+
+            try {
+                await Promise.all([
+                    window.DatabaseService.updateBook(bookId, originalBook),
+                    window.DatabaseService.addBorrowedBook(borrowedBook)
+                ]);
+                
+                closeModal();
+                showAlert('Book borrowed successfully!', 'success');
+                await window.updateBookListUI();
+            } catch (error) {
+                showAlert(error.message, 'error');
+            }
+        }
+
+        // Function to search books
+        function searchBooks() {
+            const query = document.getElementById('searchQuery').value.trim().toLowerCase();
+            if (query) {
+                DatabaseService.loadBooks().then(books => {
+                    const filteredBooks = Object.values(books).filter(book =>
+                        book.title.toLowerCase().includes(query) ||
+                        book.author.toLowerCase().includes(query)
+                    );
+                    updateBookListUI(filteredBooks);
+                }).catch(error => {
+                    console.error("Error searching books:", error);
+                });
+            } else {
+                updateBookListUI();
+            }
+        }
+
+        // Function to sort books
+        function sortBooks() {
+            const sortBy = document.getElementById('sortBooks').value;
+            DatabaseService.loadBooks().then(books => {
+                const sortedBooks = Object.values(books).sort((a, b) => {
+                    if (a[sortBy] < b[sortBy]) return -1;
+                    if (a[sortBy] > b[sortBy]) return 1;
+                    return 0;
+                });
+                updateBookListUI(sortedBooks);
+            }).catch(error => {
+                console.error("Error sorting books:", error);
+            });
+        }
+
+        function logout() {
+            localStorage.removeItem('isAuthenticated');
+            window.location.href = 'login.html';
+        }
+
+        async function handleLogout() {
+            try {
+                await firebase.auth().signOut();
+                localStorage.clear();
+                sessionStorage.clear();
+                window.location.replace('login.html');
+            } catch (error) {
+                console.error("Logout failed:", error);
+            }
+        }
+
+        // Add this function at the top level
+        async function logoutUser() {
+            try {
+                await firebase.auth().signOut();
+                localStorage.clear();
+                sessionStorage.clear();
+                window.location.href = 'login.html';
+                return false;
+            } catch (error) {
+                console.error("Logout failed:", error);
+            }
+        }
+
+        // Update showTab function
+        function showTab(tabId) {
+            // First hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.style.display = 'none';
+                tab.classList.remove('active');
+            });
+
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            const selectedTab = document.getElementById(tabId);
+            if (selectedTab) {
+                selectedTab.style.display = 'block';
+                selectedTab.classList.add('active');
+            }
+
+            // Update tab button state
+            const tabButton = document.querySelector(`[onclick="showTab('${tabId}')"]`);
+            if (tabButton) {
+                tabButton.classList.add('active');
+            }
+
+            // Refresh book lists when switching tabs
+            if (tabId === 'available-books' || tabId === 'unavailable-books') {
+                updateBookListUI();
+            }
+        }
+    </script>
+    <script>
+        // Add this to your existing script section
+        window.searchBooks = function() {
+            const query = document.getElementById('searchQuery').value.trim().toLowerCase();
+            
+            if (window.DatabaseService) {
+                window.DatabaseService.loadBooks().then(books => {
+                    const filteredBooks = Object.values(books).filter(book => 
+                        book.title.toLowerCase().includes(query) ||
+                        book.author.toLowerCase().includes(query)
+                    );
+                    
+                    window.updateBookListUI(query ? filteredBooks : null);
+                }).catch(error => {
+                    console.error("Error searching books:", error);
+                    window.showAlert('Error searching books', 'error');
+                });
+            }
+        };
+
+        window.sortBooks = function() {
+            const sortBy = document.getElementById('sortBooks').value;
+            if (!sortBy) return;
+            
+            if (window.DatabaseService) {
+                window.DatabaseService.loadBooks().then(books => {
+                    if (!books) return;
+                    
+                    const booksArray = Object.values(books);
+                    const sortedBooks = [...booksArray].sort((a, b) => {
+                        if (a[sortBy] < b[sortBy]) return -1;
+                        if (a[sortBy] > b[sortBy]) return 1;
+                        return 0;
+                    });
+                    
+                    window.updateBookListUI({ books: sortedBooks });
+                }).catch(error => {
+                    console.error("Error sorting books:", error);
+                    window.showAlert('Error sorting books', 'error');
+                });
+            }
+        };
+
+        // Add these functions to your existing script
+        window.handleSearch = function(query) {
+            const searchTerm = query.trim().toLowerCase();
+            
+            if (window.DatabaseService) {
+                window.DatabaseService.loadBooks().then(books => {
+                    if (!books) return;
+                    
+                    const booksArray = Object.values(books);
+                    const filteredBooks = searchTerm ? 
+                        booksArray.filter(book => 
+                            book.title.toLowerCase().includes(searchTerm) ||
+                            book.author.toLowerCase().includes(searchTerm)
+                        ) : booksArray;
+                    
+                    window.updateBookListUI(filteredBooks);
+                }).catch(error => {
+                    console.error("Error searching books:", error);
+                    window.showAlert('Error searching books', 'error');
+                });
+            }
+        };
+
+        window.handleSort = function(criteria) {
+            if (!criteria) return;
+            
+            if (window.DatabaseService) {
+                window.DatabaseService.loadBooks().then(books => {
+                    if (!books) return;
+                    
+                    const booksArray = Object.values(books);
+                    const sortedBooks = [...booksArray].sort((a, b) => {
+                        const valueA = (typeof a[criteria] === 'string') ? 
+                            a[criteria].toLowerCase() : a[criteria];
+                        const valueB = (typeof b[criteria] === 'string') ? 
+                            b[criteria].toLowerCase() : b[criteria];
+                        
+                        if (valueA < valueB) return -1;
+                        if (valueA > valueB) return 1;
+                        return 0;
+                    });
+                    
+                    window.updateBookListUI(sortedBooks);
+                }).catch(error => {
+                    console.error("Error sorting books:", error);
+                    window.showAlert('Error sorting books', 'error');
+                });
+            }
+        };
+    </script>
+    <script>
+// Add this right after your DatabaseService import
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('searchInput');
+    const sortSelect = document.getElementById('sortSelect');
+
+    // Improved search handler with debouncing
+    let searchTimeout;
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(async () => {
+            const query = e.target.value.toLowerCase().trim();
+            try {
+                const books = await window.DatabaseService.loadBooks();
+                if (!books) return;
+
+                let filteredBooks;
+                if (query) {
+                    // Case-insensitive search on both title and author
+                    filteredBooks = Object.values(books).filter(book => 
+                        (book.title || '').toLowerCase().includes(query) ||
+                        (book.author || '').toLowerCase().includes(query)
+                    );
+                } else {
+                    filteredBooks = Object.values(books);
+                }
+
+                // Maintain current sort while searching
+                const currentSort = sortSelect.value;
+                if (currentSort) {
+                    filteredBooks.sort((a, b) => {
+                        const aValue = String(a[currentSort]).toLowerCase();
+                        const bValue = String(b[currentSort]).toLowerCase();
+                        return aValue.localeCompare(bValue);
+                    });
+                }
+
+                await window.updateBookListUI(filteredBooks);
+            } catch (error) {
+                console.error('Search error:', error);
+                window.showAlert('Error searching books', 'error');
+            }
+        }, 300); // Debounce for 300ms
+    });
+
+    // Improved sort handler
+    sortSelect.addEventListener('change', async (e) => {
+        const sortBy = e.target.value;
+        const query = searchInput.value.toLowerCase().trim();
+        
+        try {
+            const books = await window.DatabaseService.loadBooks();
+            if (!books) return;
+
+            let resultsToSort = Object.values(books);
+
+            // Apply current search filter if exists
+            if (query) {
+                resultsToSort = resultsToSort.filter(book =>
+                    (book.title || '').toLowerCase().includes(query) ||
+                    (book.author || '').toLowerCase().includes(query)
+                );
+            }
+
+            // Apply sorting
+            if (sortBy) {
+                resultsToSort.sort((a, b) => {
+                    const aValue = a[sortBy];
+                    const bValue = b[sortBy];
+
+                    if (typeof aValue === 'string' && typeof bValue === 'string') {
+                        return aValue.toLowerCase().localeCompare(bValue.toLowerCase());
+                    }
+                    
+                    if (typeof aValue === 'number' && typeof bValue === 'number') {
+                        return aValue - bValue;
+                    }
+
+                    return String(aValue).localeCompare(String(bValue));
+                });
+            }
+
+            await window.updateBookListUI(resultsToSort);
+        } catch (error) {
+            console.error('Sort error:', error);
+            window.showAlert('Error sorting books', 'error');
+        }
+    });
+});
+</script>
+    <script>
+    // Add this to your existing DOMContentLoaded event
+    document.addEventListener('DOMContentLoaded', () => {
+        // Add animation delay to books
+        document.querySelectorAll('.book').forEach((book, index) => {
+            book.style.setProperty('--i', index);
+        });
+    });
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>
